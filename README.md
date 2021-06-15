@@ -1,7 +1,7 @@
 # autoBtc
 Bitcoin trading bot built using NodeJS which uses a volatility-based trading strategy.
 
-Built upon Demo HitBTC crypto exchange platform.
+Built on the Demo HitBTC crypto exchange platform with the use of their API.
 
 # Progress
 [x] Crypto Exchange Client Prototype (implemented)
@@ -12,6 +12,8 @@ Built upon Demo HitBTC crypto exchange platform.
 
 [ ] Business strategy written into trading bot
 
+[ ] Automation
+
 # NPM Packages
 1. node-fetch
 
@@ -19,3 +21,8 @@ I recommend using 'npm i' when first cloning the repo in order to install al lre
 
 # Secrets & API Keys
 In order to run the project, the user should get a public:secret key pair from Demo HitBTC.
+
+The API credentials should then be placed in a dictionary 'classes/HTTP/assets' in a 'secrets.js' file which contains API_KEY and SECRET_KEY. 
+
+Finally, export the dictionary and use it in the HTTP client.
+
