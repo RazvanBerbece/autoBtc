@@ -1,0 +1,22 @@
+{
+  "name": "autobtc",
+  "version": "1.0.0",
+  "description": "Bitcoin trading bot built using NodeJS and using a volatility-based trading strategy.",
+  "main": "./src/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RazvanBerbece/autoBtc.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/RazvanBerbece/autoBtc/issues"
+  },
+  "homepage": "https://github.com/RazvanBerbece/autoBtc#readme",
+  "dependencies": {
+    "node-fetch": "^2.6.1"
+  }
+}
