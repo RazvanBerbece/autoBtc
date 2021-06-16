@@ -1,3 +1,7 @@
+/**
+ * HTTP Client class for the HitBTC REST API
+ */
+
 const fetch = require('node-fetch');
 const secrets = require('./assets/secrets');
 
@@ -11,11 +15,13 @@ class HTTPClient {
         this.credentials = Buffer.from(secrets.API_KEY + ':' + secrets.SECRET_KEY).toString('base64');
     }
     
-    // Tests whether the Kraken Trading API returns a response before starting trading
-    // callbacks array [result, errMessage]
-    // result = 0 => successful operation
-    // result = 1 => failed operation
-    // errMessage only has a value when result = 0
+    /** 
+     * Tests whether the HitBTC Trading API returns a response before starting trading
+     * callbacks array [result, errMessage]
+     * result = 0 => successful operation
+     * result = 1 => failed operation
+     * errMessage only has a value when result = 0
+     */
     testAPIConnection(callback) {
         fetch(this.initialPublicLink + "/ticker/BTCUSD", {
             method: 'GET'
@@ -23,17 +29,17 @@ class HTTPClient {
         .then(res => res.json())
         .then(json => {
             // console.log(json);
-            callback([0, ""]);
+            callback(0, "");
         })
         .catch(error => {
-            callback([1, error]);
+            callback(1, error);
         });
     }
     
     /**
-     * Returns the current balance of the trader account
+     * Returns the current balance of the trader account in the specified string parameter currency
      */
-    getBalance(callback) {
+    getAccountBalance(currency, callback) {
 
         // GET request
         fetch(this.initialPrivateLink + '/trading/balance', {
@@ -46,15 +52,47 @@ class HTTPClient {
         .then(json => {
             if (json.error !== undefined) {
                 console.log(`\nError with code ${json.error.code} occured ~> ${json.error.message}\n`);
-                callback([1, json.error.message]);
+                callback(1, '', json.error.message);
             }
             else {
-                console.log(json);
-                callback([0, ""]);
+                for (var i = 0; i < json.length; i++) {
+                    var obj = json[i];
+                    if (obj.currency == currency) {
+                        // console.log(obj.available);
+                        callback(0, obj.available, '');
+                    }
+                }
             }
         })
         .catch(error => {
-            callback([1, error]);
+            callback(1, '', error);
+        });
+
+    }
+
+    /**
+     * Returns the value of a crypto symbol (best bid) passed as a string paramater
+     * @param {string} symbol 
+     */
+    getSymbolValue(symbol, callback) {
+
+        // GET request
+        fetch(this.initialPublicLink + `/ticker/${symbol}`, {
+            method: 'GET'
+        })
+        .then(res => res.json())
+        .then(json => {
+            if (json.error !== undefined) {
+                console.log(`\nError with code ${json.error.code} occured ~> ${json.error.message}\n`);
+                callback(1, '', json.error.message);
+            }
+            else {
+                // console.log(json.bid);
+                callback(0, json.bid, '');
+            }
+        })
+        .catch(error => {
+            callback(1, '', error);
         });
 
     }
@@ -64,7 +102,6 @@ class HTTPClient {
      * @param {string} symbol   ~> symbol (eg: BTCUSD)
      * @param {string} side     ~> buy/sell
      * @param {number} quantity ~> order quantity
-     * @param {number} price ~> order quantity
      * 
      * To create buy orders : Available balance > price * quantity * (1 + takeLiquidityRate)
      */
@@ -84,15 +121,28 @@ class HTTPClient {
         .then(json => {
             if (json.error !== undefined) {
                 console.log(`\nError with code ${json.error.code} occured ~> ${json.error.message}\n`);
-                callback([1, json.error.message]);
+                callback(1, undefined, json.error.message);
             }
             else {
-                console.log(json);
-                callback([0, ""]);
+
+                // console.log(json);
+
+                // Calculate the final price of the operation using (price * quantity) -- fees not considered yet (+ fees)
+                if (json.tradesReport !== undefined) {
+                    var finalTradePrice = parseFloat(json.tradesReport[0].price) * parseFloat(json.tradesReport[0].quantity);
+
+                    callback(0, {
+                        finalTradePrice: finalTradePrice,
+                        atPrice: parseFloat(json.tradesReport[0].price)
+                    }, '');
+                }
+                else { // sell case
+                    callback(0, undefined, '');
+                }
             }
         })
         .catch(error => {
-            callback([1, error]);
+            callback(1, undefined, error);
         });
 
     }
