@@ -8,13 +8,13 @@ Built on the Demo HitBTC crypto exchange platform with the use of their API.
 
 [x] Buy & Sell orders (implemented)
 
-[x] Business strategy written into trading bot (progressing)
+[x] Business strategy written into trading bot (implemented)
 
 [x] Automation (implemented)
 
 [ ] Migrate to Websockets HitBTC API for more speed 
 
-[ ] Double-Selling Fix
+[ ] Minor Fixes (Double-selling bug, Buying (when selling should be processed) then selling, ...)
 
 # NPM Packages
 1. node-fetch
