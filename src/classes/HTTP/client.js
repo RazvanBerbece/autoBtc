@@ -57,7 +57,7 @@ class HTTPClient {
             else {
                 for (var i = 0; i < json.length; i++) {
                     var obj = json[i];
-                    if (obj.currency == currency) {
+                    if (obj.currency === currency) {
                         // console.log(obj.available);
                         callback(0, obj.available, '');
                     }
@@ -87,8 +87,7 @@ class HTTPClient {
                 callback(1, '', json.error.message);
             }
             else {
-                // console.log(json.bid);
-                callback(0, json.bid, '');
+                callback(0, json.last, '');
             }
         })
         .catch(error => {

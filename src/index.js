@@ -10,8 +10,11 @@ const httpClient = new HTTPClientExport();
 var transactionsToBeChecked = [];
 var allTransactions = [];
 
+/** Value variables */
+var globalCurrentLast = undefined;
+
 /** Profit strategy processing */
-function processProfitStrategy(transactions, newPrice) {
+function processProfitStrategy(callback) {
     
     // Returned value
     var result = {
@@ -20,32 +23,53 @@ function processProfitStrategy(transactions, newPrice) {
         recovered: undefined // only defined when side = 'sell'
     };
 
+    // promise based approach to retrieving available funds
+    var getAvailableFunds = new Promise((resolve, reject) => {
+        httpClient.getAccountBalance('USD', (balanceCode, availableBalance, error) => {
+            if (balanceCode === 0) {
+                resolve(availableBalance);
+            }
+            else { // failed to get balance data
+                console.log(error);
+                reject(error);
+            }
+        });
+    });
+
     // Iterate through transactions to determine course of action 
     // Based on past transaction best bids and comparing to current best bid
-    var found = 0;
+    var found = undefined;
     var search = new Promise((resolve, reject) => {
 
-        transactions.forEach((value, index, array) => {
+        transactionsToBeChecked.forEach((value, index, array) => {
 
             // Use Decimal.js package for precise comparisons
-            var newPriceDec = new Decimal(newPrice);
+            var newPriceDec = new Decimal(globalCurrentLast);
             var atPriceDec = new Decimal(value.atPrice);
 
             if (newPriceDec.greaterThan(atPriceDec) === true) {
                 console.log(`${newPriceDec} && ${atPriceDec}`);
                 result.side = 'sell';
-                result.value = (value.quantity * value.atPrice) / newPrice;
+                result.value = (value.quantity * value.atPrice) / globalCurrentLast;
                 result.recovered = value.paidPrice;
                 found = 1;
-                transactions.splice(i, 1);
+                transactionsToBeChecked.splice(index, 1);
+                allTransactions.splice(index, 1);
     
                 httpClient.placeOrder('btcusd', 'sell', result.value, (resultOrderRec, pricingRec, errOrderRec) => {
                     if (resultOrderRec === 0) { // successfully sold for profit
-                        console.log(`SELL @ ${newPrice}`);
-                        allTransactions.push(new Transaction('btcusd', 'sell', result.value, result.recovered, newPrice));
+
+                        console.log(`SELL @ ${globalCurrentLast}`);
+
+                        // store sell transaction
+                        allTransactions.push(new Transaction('btcusd', 'sell', result.value, result.recovered, globalCurrentLast));
+
+                        resolve();
+
                     }
                     else { // err handling placeOrder(sell) rec
                         console.log(errOrderRec);
+                        reject();
                     }
                 });
             }
@@ -58,20 +82,23 @@ function processProfitStrategy(transactions, newPrice) {
 
     // All past transactions are made at higher best bids => current best bid is lower => buy
     search.then(() => {
-        if (found === 0) {
+        if (found === undefined) { // BOUGHT
 
             result.side = 'buy';
     
             // check if account has enough balance to execute buy order
             httpClient.getAccountBalance('USD', (balanceCode, availableBalance, error) => {
                 if (balanceCode === 0) {
-                    if (availableBalance > (result.value * newPrice) * (1 + 0.001)) { // buy allowed
+                    if (availableBalance > (result.value * globalCurrentLast) * (1 + 0.001)) { // buy allowed
                         httpClient.placeOrder('btcusd', 'buy', 0.00005, (resultOrder, pricing, errOrder) => {
                             if (resultOrder === 0) {
-                                console.log(`BUY @ ${pricing.atPrice} ~> Remaining Funds : ${availableBalance}$`);
+
+                                console.log(`BUY @ ${pricing.atPrice}`);
+
+                                // store buy transaction
                                 transactionsToBeChecked.push(new Transaction('btcusd', 'buy', 0.00005, pricing.finalTradePrice, pricing.atPrice));
                                 allTransactions.push(new Transaction('btcusd', 'buy', 0.00005, pricing.finalTradePrice, pricing.atPrice));
-                                // console.log(allTransactions);
+
                             }
                             else {
                                 console.log(errOrder);
@@ -87,6 +114,13 @@ function processProfitStrategy(transactions, newPrice) {
                 }
             });
         }
+    }).then(() => {
+        // display available funds after buy/sell transaction
+        getAvailableFunds.then((funds) => {
+            console.log(`Available Funds : ${funds}`);
+        }).catch((err) => {
+            // console.log(err);
+        })
     })
 
 } 
@@ -105,26 +139,38 @@ httpClient.testAPIConnection((result, errResult) => {
                 transactionsToBeChecked.push(new Transaction('btcusd', 'buy', 0.00005, pricing.finalTradePrice, pricing.atPrice));
                 allTransactions.push(new Transaction('btcusd', 'buy', 0.00005, pricing.finalTradePrice, pricing.atPrice));
 
-                // automate the business strategy, operate every 1.5 sec
-                // new best bid < all trades x  ==> buy
-                // new best bid > trade x       ==> sell trade x amount of crypto to cover investment 
-                // else                         ==> HOLD
-                setInterval(function() {
-                    
-                    // get new best bid
-                    httpClient.getSymbolValue('BTCUSD', (opCode, currentBestBid, errValue) => {
+                // query new last price every second and save in global variable
+                httpClient.getSymbolValue('BTCUSD', (opCode, currentLast, errValue) => {
+                    if (opCode === 0) { // store new current best bid
+                        globalCurrentLast = currentLast;
+                        console.log(`Calculated current last price : ${globalCurrentLast}$`);
 
-                        if (opCode === 0) {
+                        setInterval(() => { // start timer and automate price querying
+                            httpClient.getSymbolValue('BTCUSD', (opCode, currentLast, errValue) => {
+                                if (opCode === 0) { // store new current best bid
+                                    globalCurrentLast = currentLast;
+                                }
+                                else { // err handling getSymbolValue()
+                                    console.log(errValue);
+                                }
+                            });
+                        }, 500);
+
+                        // automate the business strategy, operate every 1.5 sec
+                        // new best bid < all trades x  ==> buy
+                        // new best bid > trade x       ==> sell trade x amount of crypto to cover investment 
+                        // else                         ==> HOLD
+                        setInterval(() => {
                             // use strategy to decide whether to buy or sell
-                            processProfitStrategy(transactionsToBeChecked, currentBestBid);
-                        }
-                        else { // err handling getSymbolValue()
-                            console.log(errValue);
-                        }
+                            console.log(`Calculated current last price : ${globalCurrentLast}$`);
+                            processProfitStrategy();
+                        }, 3500);
 
-                    });
-
-                }, 3500);
+                    }
+                    else { // err handling getSymbolValue()
+                        console.log(errValue);
+                    }
+                });
 
             }
             else { // err handling placeOrder(buy)
