@@ -8,13 +8,18 @@ Built on the Demo HitBTC crypto exchange platform with the use of their API.
 
 [x] Buy & Sell orders (implemented)
 
-[~] Business strategy written into trading bot (progressing)
+[x] Business strategy written into trading bot (progressing)
 
 [x] Automation (implemented)
+
+[ ] Migrate to Websockets HitBTC API for more speed 
+
+[ ] Double-Selling Fix
 
 # NPM Packages
 1. node-fetch
 2. Decimal.js
+3. fs
 
 I recommend using 'npm i' when first cloning the repo in order to install all required packages.
 
