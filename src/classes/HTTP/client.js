@@ -127,16 +127,27 @@ class HTTPClient {
                 // console.log(json);
 
                 // Calculate the final price of the operation using (price * quantity) -- fees not considered yet (+ fees)
-                if (json.tradesReport !== undefined) {
+                if (json.side === 'buy' && json.tradesReport !== undefined) {
+
+                    // paid
                     var finalTradePrice = parseFloat(json.tradesReport[0].price) * parseFloat(json.tradesReport[0].quantity);
 
                     callback(0, {
                         finalTradePrice: finalTradePrice,
                         atPrice: parseFloat(json.tradesReport[0].price)
                     }, '');
+
                 }
-                else { // sell case
-                    callback(0, undefined, '');
+                else if (json.side === 'sell' && json.tradesReport !== undefined) { // sell case
+                    
+                    // received
+                    var finalTradePrice = parseFloat(json.tradesReport[0].price) * parseFloat(json.tradesReport[0].quantity);
+
+                    callback(0, {
+                        finalTradePrice: finalTradePrice - parseFloat(json.tradesReport[0].fee),
+                        atPrice: parseFloat(json.tradesReport[0].price)
+                    }, '');
+
                 }
             }
         })
