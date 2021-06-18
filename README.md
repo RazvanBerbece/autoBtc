@@ -8,7 +8,7 @@ Built on the Demo HitBTC crypto exchange platform with the use of their API.
 
 [x] Buy & Sell orders (implemented)
 
-[x] Business strategy written into trading bot (implemented)
+[x] Trading strategy written into trading bot (implemented)
 
 [x] Automation (implemented)
 
