@@ -123,9 +123,6 @@ class HTTPClient {
                 callback(1, undefined, json.error.message);
             }
             else {
-
-                // console.log(json);
-
                 // Calculate the final price of the operation using (price * quantity) -- fees not considered yet (+ fees)
                 if (json.side === 'buy' && json.tradesReport !== undefined) {
 
@@ -133,7 +130,7 @@ class HTTPClient {
                     var finalTradePrice = parseFloat(json.tradesReport[0].price) * parseFloat(json.tradesReport[0].quantity);
 
                     callback(0, {
-                        finalTradePrice: finalTradePrice,
+                        finalTradePrice: finalTradePrice + parseFloat(json.tradesReport[0].fee),
                         atPrice: parseFloat(json.tradesReport[0].price)
                     }, '');
 
@@ -154,7 +151,6 @@ class HTTPClient {
         .catch(error => {
             callback(1, undefined, error);
         });
-
     }
 
 }

@@ -116,7 +116,7 @@ function processProfitStrategy(callback) {
                 var newPriceDec = new Decimal(globalCurrentLast);
                 var atPriceDec = new Decimal(value.atPrice);
 
-                if (newPriceDec.greaterThan(atPriceDec.plus(0.5)) === true) {
+                if (newPriceDec.greaterThan(atPriceDec.plus(0.5 + FEE)) === true) {
 
                     result.side = 'sell';
                     // result.value = (value.quantity * value.atPrice) / globalCurrentLast;
@@ -216,10 +216,12 @@ updateCurrentPrice();
 httpClient.testAPIConnection((result, errResult) => {
     if (result === 0) { // successfully queried the HitBTC API
 
-        console.log("\nConnection to HitBTC API working.\n");
+        console.log("\nConnection to HitBTC API working.");
+
+        displayFunds();
+        const unixElapsed = Date.now();
 
         // Do one buy operation when starting the bot
-        const unixElapsed = Date.now();
         httpClient.placeOrder('btcusd', 'buy', ORDER_QUANTITY, (resultOrder, pricing, errOrder) => {
 
             if (resultOrder == 0) { // successfully placed buy order
