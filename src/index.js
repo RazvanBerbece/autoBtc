@@ -11,7 +11,7 @@ const quickSort = require('./libs/sort/sort');
 const httpClient = new HTTPClientExport();
 const storageClient = new Storage();
 
-/** Transaction Constants */
+/** Transaction Constants -- Change these to customise bot runs */
 const ORDER_QUANTITY = 0.00005;
 const FEE = 0.001;
 const MAX_BUY_COUNTER = 5; // max repeated buys = 5
@@ -25,7 +25,6 @@ var buyCounter = 0; // counts the number of buy transactions
 var globalCurrentLast = undefined;
 
 /** Helpful additional declarations */
-
 const displayFunds = () => {
     httpClient.getAccountBalance('USD', (balanceCode, availableBalance, error) => {
         if (balanceCode === 0) {
@@ -59,22 +58,13 @@ const updateCurrentPrice = () => {
 /** Profit strategy processing */
 function processProfitStrategy(callback) {
 
-    // Useful for transaction and output
-    var result = {
-        side: undefined, // 'buy' or 'sell'
-        value: ORDER_QUANTITY, // default to 0.0001 or changed to calculated value when side = 'sell'
-        recovered: undefined // only defined when side = 'sell'
-    };
-
     // If no transactions left, buy
     if (transactionsToBeChecked.length === 0) {
-
-        result.side = 'buy';
 
         // check if account has enough balance to execute buy order
         httpClient.getAccountBalance('USD', (balanceCode, availableBalance, error) => {
             if (balanceCode === 0) {
-                if (availableBalance > (result.value * globalCurrentLast) * (1 + FEE)) { // buy allowed
+                if (availableBalance > (ORDER_QUANTITY * globalCurrentLast) * (1 + FEE)) { // buy allowed
                     const unixElapsed = Date.now();
                     httpClient.placeOrder('btcusd', 'buy', ORDER_QUANTITY, (resultOrder, pricing, errOrder) => {
                         if (resultOrder === 0 && found === undefined) {
@@ -118,10 +108,8 @@ function processProfitStrategy(callback) {
 
                 if (newPriceDec.greaterThan(atPriceDec.plus(0.5 + FEE)) === true) {
 
-                    result.side = 'sell';
-                    // result.value = (value.quantity * value.atPrice) / globalCurrentLast;
-                    result.value = value.quantity;
-                    result.recovered = value.paidPrice;
+                    // quantityToSell = (value.quantity * value.atPrice) / globalCurrentLast;
+                    const quantityToSell = value.quantity;
 
                     found = 1;
 
@@ -130,7 +118,7 @@ function processProfitStrategy(callback) {
 
                     const unixElapsed = Date.now();
 
-                    httpClient.placeOrder('btcusd', 'sell', result.value, (resultOrderRec, pricingRec, errOrderRec) => {
+                    httpClient.placeOrder('btcusd', 'sell', quantityToSell, (resultOrderRec, pricingRec, errOrderRec) => {
                         if (resultOrderRec === 0) { // successfully sold for profit
 
                             console.log(`SELL @ $${globalCurrentLast}`);
@@ -139,7 +127,7 @@ function processProfitStrategy(callback) {
                             buyCounter = 0;
 
                             // store sell transaction
-                            allTransactions.push(new Transaction('btcusd', 'SELL', result.value, result.recovered, globalCurrentLast, unixElapsed));
+                            allTransactions.push(new Transaction('btcusd', 'SELL', quantityToSell, value.paidPrice, globalCurrentLast, unixElapsed));
 
                             resolve();
 
@@ -160,8 +148,6 @@ function processProfitStrategy(callback) {
         search.then(() => {
             if (found === undefined) { // BOUGHT
 
-                result.side = 'buy';
-
                 if (buyCounter >= MAX_BUY_COUNTER) { // HOLD
                     callback(2); // HOLD callback value
                 }
@@ -169,7 +155,7 @@ function processProfitStrategy(callback) {
                 // check if account has enough balance to execute buy order
                 httpClient.getAccountBalance('USD', (balanceCode, availableBalance, error) => {
                     if (balanceCode === 0) {
-                        if (availableBalance > (result.value * globalCurrentLast) * (1 + FEE)) { // buy allowed
+                        if (availableBalance > (ORDER_QUANTITY * globalCurrentLast) * (1 + FEE)) { // buy allowed
 
                             const unixElapsed = Date.now();
 
