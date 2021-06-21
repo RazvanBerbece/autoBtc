@@ -4,20 +4,17 @@ Bitcoin trading bot built using NodeJS which uses a volatility-based trading str
 Built on the Demo HitBTC crypto exchange platform with the use of their API.
 
 # Progress
-[x] Crypto Exchange Client Prototype (implemented)
+[ ] Websockets API Client
 
-[x] Buy & Sell orders (implemented)
+[ ] Buy & Sell orders 
 
-[x] Trading strategy written into trading bot (implemented)
+[ ] Trading strategy written into trading bot (To be migrated from the REST API version)
 
-[x] Automation (implemented)
+[ ] Automation (To be migrated from the REST API version)
 
-[ ] Migrate to Websockets HitBTC API for more speed 
-
-[ ] Minor Fixes (Double-selling bug, Buying (when selling should be processed) then selling, ...)
 
 # NPM Packages
-1. node-fetch
+1. ws
 2. fs
 
 I recommend using 'npm i' when first cloning the repo in order to install all required packages.
