@@ -18,8 +18,7 @@ Built on the Demo HitBTC crypto exchange platform with the use of their API.
 
 # NPM Packages
 1. node-fetch
-2. Decimal.js
-3. fs
+2. fs
 
 I recommend using 'npm i' when first cloning the repo in order to install all required packages.
 

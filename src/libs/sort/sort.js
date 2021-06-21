@@ -1,10 +1,10 @@
 const Transaction = require('../../classes/Transaction/transaction');
 
 /**
- * Sorts the passed transactions array in descending order on the avg. price using the quicksort method
- * @param {[Transaction]} array 
- * @param {number} left 
- * @param {number} right 
+ * Sorts the passed transactions array in ascending order on the avg. time using the quicksort method
+ * @param {[Transaction]} array - array to be sorted
+ * @param {number} left - left bound of array (eg: 0)
+ * @param {number} right - roght bound of array (eg: n - 1)
  */
 function quickSort(array, left, right) {
 

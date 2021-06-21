@@ -1,3 +1,3 @@
 classes/HTTP/assets/secrets.js
-data/transactionHistory.txt
-data/remainingTransactions.txt
+data/transactionHistory.csv
+data/remainingTransactions.csv

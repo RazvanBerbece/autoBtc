@@ -5,6 +5,9 @@
 const fetch = require('node-fetch');
 const secrets = require('./assets/secrets');
 
+/** Global Variables */
+var TICKER_PRICE = require('../../global/price');
+
 class HTTPClient {
 
     constructor() {
@@ -15,31 +18,10 @@ class HTTPClient {
         this.credentials = Buffer.from(secrets.API_KEY + ':' + secrets.SECRET_KEY).toString('base64');
     }
     
-    /** 
-     * Tests whether the HitBTC Trading API returns a response before starting trading
-     * callbacks array [result, errMessage]
-     * result = 0 => successful operation
-     * result = 1 => failed operation
-     * errMessage only has a value when result = 0
-     */
-    testAPIConnection(callback) {
-        fetch(this.initialPublicLink + "/ticker/BTCUSD", {
-            method: 'GET'
-        })
-        .then(res => res.json())
-        .then(json => {
-            // console.log(json);
-            callback(0, "");
-        })
-        .catch(error => {
-            callback(1, error);
-        });
-    }
-    
     /**
      * Returns the current balance of the trader account in the specified string parameter currency
      */
-    getAccountBalance(currency, callback) {
+    async getAccountBalance(currency, callback) {
 
         // GET request
         fetch(this.initialPrivateLink + '/trading/balance', {
@@ -87,7 +69,7 @@ class HTTPClient {
                 callback(1, '', json.error.message);
             }
             else {
-                callback(0, json.last, '');
+                callback(0, json.bid, '');
             }
         })
         .catch(error => {
@@ -98,59 +80,74 @@ class HTTPClient {
 
     /**
      * Places an order using the parameters below
-     * @param {string} symbol   ~> symbol (eg: BTCUSD)
-     * @param {string} side     ~> buy/sell
-     * @param {number} quantity ~> order quantity
+     * @param {string} symbol       ~> symbol (eg: BTCUSD)
+     * @param {string} side         ~> buy/sell
+     * @param {number} quantity     ~> order quantity
+     * @param {number} priceAtCall  ~> price of currency at call time
      * 
      * To create buy orders : Available balance > price * quantity * (1 + takeLiquidityRate)
      */
-    placeOrder(symbol, side, quantity, callback) {
+    async placeOrder(symbol, side, quantity, priceAtCall) {
+
+        /**
+         * This function takes too long to execute in order to sell/buy at the perfect time
+         * As a result, for instance, supposed sell orders will execute a tick after the priceAtCall,
+         * which can be lower which leads to losses
+         * 
+         * Solutions :
+         *  1. Rewrite the REST API client to a Websockets client 
+         *  2. Machine Learning model to predict whether the next tick will be upwards or downwards (risky, could be rewarding)
+         */
+
+        // double checking for downwards price change after function call
+        if (side === "sell" && parseFloat(TICKER_PRICE) < parseFloat(priceAtCall)) {
+            return null;
+        }
 
         // Build params string
-        const params = '?' + `symbol=${symbol}` + `&side=${side}` + `&quantity=${quantity}` + `&type=market`;
+        const link = this.initialPrivateLink + '/order' + '?' + `symbol=${symbol}` + `&side=${side}` + `&quantity=${quantity}` + `&type=market`;
 
         // POST request
-        fetch(this.initialPrivateLink + '/order' + params, {
+        const res = await fetch(link, {
             method: 'POST',
             headers: {
                 'Authorization': 'Basic ' + this.credentials,
             }
-        })
-        .then(res => res.json())
-        .then(json => {
-            if (json.error !== undefined) {
-                console.log(`\nError with code ${json.error.code} occured ~> ${json.error.message}\n`);
-                callback(1, undefined, json.error.message);
+        });
+
+        const json = await res.json();
+
+        if (json.error !== undefined) {
+            throw new Error(`Error with code ${json.error.code} occured ~> ${json.error.message}\n`);
+        }
+        else {
+            // Calculate the final price of the operation using (price * quantity) -- fees not considered yet (+ fees)
+            if (json.side === 'buy' && json.tradesReport !== undefined) {
+
+                // paid
+                var finalTradePrice = parseFloat(json.tradesReport[0].price) * parseFloat(json.tradesReport[0].quantity);
+
+                return [0, {
+                    finalTradePrice: finalTradePrice + parseFloat(json.tradesReport[0].fee),
+                    atPrice: parseFloat(json.tradesReport[0].price)
+                }, ''];
+
+            }
+            else if (json.side === 'sell' && json.tradesReport !== undefined) { // sell case
+                
+                // received
+                var finalTradePrice = parseFloat(json.tradesReport[0].price) * parseFloat(json.tradesReport[0].quantity);
+
+                return [0, {
+                    finalTradePrice: finalTradePrice - parseFloat(json.tradesReport[0].fee),
+                    atPrice: parseFloat(json.tradesReport[0].price)
+                }, ''];
+
             }
             else {
-                // Calculate the final price of the operation using (price * quantity) -- fees not considered yet (+ fees)
-                if (json.side === 'buy' && json.tradesReport !== undefined) {
-
-                    // paid
-                    var finalTradePrice = parseFloat(json.tradesReport[0].price) * parseFloat(json.tradesReport[0].quantity);
-
-                    callback(0, {
-                        finalTradePrice: finalTradePrice + parseFloat(json.tradesReport[0].fee),
-                        atPrice: parseFloat(json.tradesReport[0].price)
-                    }, '');
-
-                }
-                else if (json.side === 'sell' && json.tradesReport !== undefined) { // sell case
-                    
-                    // received
-                    var finalTradePrice = parseFloat(json.tradesReport[0].price) * parseFloat(json.tradesReport[0].quantity);
-
-                    callback(0, {
-                        finalTradePrice: finalTradePrice - parseFloat(json.tradesReport[0].fee),
-                        atPrice: parseFloat(json.tradesReport[0].price)
-                    }, '');
-
-                }
+                throw new Error(`Unknown error occured.`);
             }
-        })
-        .catch(error => {
-            callback(1, undefined, error);
-        });
+        }
     }
 
 }
