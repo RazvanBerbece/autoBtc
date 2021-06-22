@@ -1,16 +1,16 @@
 # autoBtc
 Bitcoin trading bot built using NodeJS which uses a volatility-based trading strategy.
 
-Built on the Demo HitBTC crypto exchange platform with the use of their API.
+Built on the Demo HitBTC crypto exchange platform with the use of their Websockets API.
 
 # Progress
-[ ] Websockets API Client
+[x] Websockets API Client
 
 [ ] Buy & Sell orders 
 
 [ ] Trading strategy written into trading bot (To be migrated from the REST API version)
 
-[ ] Automation (To be migrated from the REST API version)
+[x] Automation (To be migrated from the REST API version)
 
 
 # NPM Packages
