@@ -6,9 +6,9 @@ Built on the Demo HitBTC crypto exchange platform with the use of their Websocke
 # Progress
 [x] Websockets API Client
 
-[ ] Buy & Sell orders 
+[x] Buy & Sell orders 
 
-[ ] Trading strategy written into trading bot (To be migrated from the REST API version)
+[x] Trading strategy written into trading bot (To be migrated from the REST API version)
 
 [x] Automation (To be migrated from the REST API version)
 
