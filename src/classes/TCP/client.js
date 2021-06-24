@@ -43,13 +43,13 @@ class Client {
         // CONFIG SOCKET HANDLERS
         // event - connect to server
         this.ws.onopen = () => {
-            console.log('Socket connected.');
+            console.log('Socket connected.\n');
             this.onConnected();
         };
 
         // event - socket disconnected
         this.ws.onclose = () => {
-            console.log('Socket closed.');
+            console.log('Socket closed.\n');
             this.promises.forEach((callback, id) => {
                 this.promises.delete(id);
                 callback.reject(new Error('Disconnected'));

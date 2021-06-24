@@ -1,7 +1,7 @@
 const Transaction = require('../../classes/Transaction/transaction');
 
 /**
- * Sorts the passed transactions array in ascending order on the avg. time using the quicksort method
+ * Sorts the passed transactions array in descending order on the avg. time using the quicksort method
  * @param {[Transaction]} array - array to be sorted
  * @param {number} left - left bound of array (eg: 0)
  * @param {number} right - roght bound of array (eg: n - 1)
@@ -26,7 +26,7 @@ function partition(array, left, right) {
     var i = left - 1; // the sorted position of the pivot
 
     for (var j = left; j < right; j++) {
-        if (parseFloat(array[j].atPrice) > pivot) {
+        if (parseFloat(array[j].atPrice) < pivot) {
             i++;
             const temp = array[i];
             array[i] = array[j];
