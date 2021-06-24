@@ -1,3 +1,4 @@
-classes/HTTP/assets/secrets.js
+classes/TCP/assets/secrets.js
 data/transactionHistory.csv
 data/remainingTransactions.csv
+global/price.js

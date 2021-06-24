@@ -1,21 +1,26 @@
 /** Modules (Obj) */
-const HTTPClientExport = require('./classes/HTTP/client');
+const Client = require('./classes/TCP/client');
 const Transaction = require('./classes/Transaction/transaction');
 const Storage = require('./classes/Storage/store');
-const Timer = require('setinterval');
+const secrets = require('./classes/TCP/assets/secrets');
 
-/** Global Variables */
-var TICKER_PRICE = require('./global/price');
+/** Libs */
+const quickSort = require('./libs/sort/sort');
+const randomString = require('./libs/random/string');
 
 /** Class Declarations & Alloc */
-const httpClient = new HTTPClientExport();
 const storageClient = new Storage();
+
+/** Socket used for communication */
+let socketBot = null;
 
 /** Transaction Constants -- Change these to customise bot runs */
 const ORDER_QUANTITY = 0.00005;
 const FEE = 0.05;
+const PROFIT_MARGIN = 0.25;
+
+/** Transaction Limiters */
 const MAX_BUY_COUNTER = 5; // max repeated buys = 5
-const PROFIT_MARGIN = 1;
 
 /** Storage of transactions */
 var transactionsToBeChecked = [];
@@ -23,47 +28,8 @@ var allTransactions = [];
 var buyCounter = 0; // counts the number of buy transactions
 
 /** Value variables */
-var globalCurrentLast = undefined;
-var globalAvailableBalance = undefined;
-
-/** Helpful additional declarations */
-const displayFunds = () => {
-    return new Promise((resolve, reject) => {
-        httpClient.getAccountBalance('USD', (balanceCode, availableBalance, error) => {
-            if (balanceCode === 0) {
-                globalAvailableBalance = availableBalance;
-                console.log(`Available Funds ~> $${availableBalance}\n`);
-                resolve();
-            } else { // failed to get balance data
-                console.log(error);
-                reject();
-            }
-        });
-    });
-}
-
-const updateCurrentPrice = () => {
-    httpClient.getSymbolValue('BTCUSD', (opCode, value, errValue) => {
-        if (opCode === 0) {
-
-            globalCurrentLast = value;
-            TICKER_PRICE.value = value; // updating global
-
-            setInterval(() => {
-                httpClient.getSymbolValue('BTCUSD', (opCode, currentLast, errValue) => {
-                    if (opCode === 0) { // store new current best bid
-                        globalCurrentLast = currentLast;
-                        TICKER_PRICE.value = currentLast;
-                    } else { // err handling getSymbolValue()
-                        console.log(errValue);
-                    }
-                });
-            }, 50);
-        } else {
-            console.log(errValue);
-        }
-    });
-}
+var currentBid = null;
+var currentAvailableBalance = null;
 
 const saveTransactions = () => {
     // store transaction history to file
@@ -73,170 +39,156 @@ const saveTransactions = () => {
 }
 
 /** Profit strategy processing */
+/**
+ * Processes whether this tick is a buy, sell or hold
+ * If the current bid is lower than the last, buy
+ * If the current bid is higher than the last, check orders which can be sold for a profit, then sell them
+ * Else hold
+ * @param   {number} bid    ~> current price of the ticker
+ * @returns {number} code   ~> represents the type of operation to do after processing the strategy
+ * 
+ * 0 = BUY
+ * 1 = SELL
+ * 2 = HOLD
+ * -1 = ERR
+ */
 async function processProfitStrategy() {
 
+    // Get available trading balance
+    const balanceResult = await socketBot.request('getTradingBalance', {});
+    for (var i = 0; i < balanceResult.length; ++i) {
+        if (balanceResult[i].currency === 'USD') {
+            currentAvailableBalance = parseFloat(balanceResult[i].available);
+            break;
+        }
+    }
+
     // If no transactions left, buy
-    if (!transactionsToBeChecked.length) {
+    if (!transactionsToBeChecked.length) { // First transaction, BUY
+        if (currentAvailableBalance > currentBid * ORDER_QUANTITY * (1 + FEE)) {
+            try {
+                const buyResult = await socketBot.request('newOrder', {
+                    'clientOrderId': randomString(9),
+                    'type': 'market',
+                    'symbol': 'BTCUSD',
+                    'side': 'buy',
+                    'quantity': `${ORDER_QUANTITY}`
+                });
+                buyCounter++;
 
-        // check if account has enough balance to execute buy order
-        if (parseFloat(globalAvailableBalance) > (ORDER_QUANTITY * parseFloat(globalCurrentLast)) * (1 + FEE)) { // buy allowed
+                console.log(`BUY @ ${currentBid}`);
+    
+                // Store transaction in both checked and history arrays
+                const transaction = new Transaction(
+                    'BTCUSD',
+                    'BUY',
+                    ORDER_QUANTITY,
+                    currentBid * ORDER_QUANTITY * (1 + FEE),
+                    currentBid,
+                    Date.now()
+                );
 
-            const unixElapsed = Date.now();
+                transactionsToBeChecked.push(transaction);
+                allTransactions.push(transaction);
 
-            httpClient.placeOrder('btcusd', 'buy', ORDER_QUANTITY).then(async (returnedValue) => {
-                if (returnedValue[0] === 0) {
-
-                    console.log(`BUY @ $${returnedValue[1].atPrice}`);
-
-                    await displayFunds();
-                    buyCounter++;
-
-                    // // store buy transaction in checked array and in history array
-                    transactionsToBeChecked.push(
-                        new Transaction(
-                            'btcusd', 
-                            'BUY', 
-                            ORDER_QUANTITY, 
-                            returnedValue[1].finalTradePrice, 
-                            returnedValue[1].atPrice, 
-                            unixElapsed)
-                        );
-                    allTransactions.push(
-                        new Transaction(
-                            'btcusd', 
-                            'BUY', 
-                            ORDER_QUANTITY, 
-                            returnedValue[1].finalTradePrice, 
-                            returnedValue[1].atPrice, 
-                            unixElapsed
-                        )
-                    );
-
-                    return 1; // BUY return value
-
-                } else {
-                    console.log(errOrder);
-                    return -1; // error
-                }
-            }).catch((err) => {
-                console.log(err);
-            });
-
+                return 0;
+            }
+            catch (e) {
+                console.log(e);
+                return -1;
+            }
+        }
+        else { 
+            return 2;
         }
     } else {
 
         var lastTransactedPrice = parseFloat(transactionsToBeChecked[transactionsToBeChecked.length - 1].atPrice);
 
-        if (parseFloat(globalCurrentLast) < lastTransactedPrice) { // BUY
+        if (currentBid < lastTransactedPrice) { // BUY
 
             if (buyCounter >= MAX_BUY_COUNTER) { // HOLD
                 return 2; // HOLD return value
             }
 
-            // check if account has enough balance to execute buy order
-            if (parseFloat(globalAvailableBalance) > (ORDER_QUANTITY * parseFloat(globalCurrentLast)) * (1 + FEE)) { // buy allowed
+            if (currentAvailableBalance > currentBid * ORDER_QUANTITY * (1 + FEE)) {
+                try {
+                    const buyResult = await socketBot.request('newOrder', {
+                        'clientOrderId': randomString(9),
+                        'type': 'market',
+                        'symbol': 'BTCUSD',
+                        'side': 'buy',
+                        'quantity': `${ORDER_QUANTITY}`
+                    });
+                    buyCounter++;
 
-                const unixElapsed = Date.now();
+                    console.log(`BUY @ ${currentBid}`);
+        
+                    // Store transaction in both checked and history arrays
+                    const transaction = new Transaction(
+                        'BTCUSD',
+                        'BUY',
+                        ORDER_QUANTITY,
+                        currentBid * ORDER_QUANTITY * (1 + FEE),
+                        currentBid,
+                        Date.now()
+                    );
+                    transactionsToBeChecked.push(transaction);
+                    allTransactions.push(transaction);
 
-                httpClient.placeOrder('btcusd', 'buy', ORDER_QUANTITY).then(async (returnedValue) => {
-                    if (returnedValue[0] === 0) {
+                    return 0;
+                }
+                catch (e) {
+                    console.log(e);
+                    return -1;
+                }
+            }
+            else { 
+                return 2;
+            }
 
-                        console.log(`BUY @ $${returnedValue[1].atPrice}`);
+        } else if (currentBid > lastTransactedPrice) { // SELL
 
-                        await displayFunds();
+            // Sort array in descending order
+            var sortedArray = transactionsToBeChecked;
+            quickSort(sortedArray, 0, sortedArray.length - 1);
+
+            for (var i = 0; i < sortedArray.length; ++i) {
+                if (sortedArray[i] > (currentBid + PROFIT_MARGIN + FEE)) {
+
+                    try {
+                        const buyResult = await socketBot.request('newOrder', {
+                            'clientOrderId': randomString(9),
+                            'type': 'market',
+                            'symbol': 'BTCUSD',
+                            'side': 'sell',
+                            'quantity': `${ORDER_QUANTITY}`
+                        });
                         buyCounter++;
 
-                        // store buy transaction in checked array and in history array
-                        transactionsToBeChecked.push(
-                            new Transaction(
-                                'btcusd', 
-                                'BUY', 
-                                ORDER_QUANTITY, 
-                                returnedValue[1].finalTradePrice, 
-                                returnedValue[1].atPrice, 
-                                unixElapsed
-                            )
+                        console.log(`SELL @ ${currentBid}`);
+            
+                        // Store transaction in the history array
+                        const transaction = new Transaction(
+                            'BTCUSD',
+                            'SELL',
+                            ORDER_QUANTITY,
+                            sortedArray[i].paidPrice,
+                            currentBid,
+                            Date.now()
                         );
-                        allTransactions.push(
-                            new Transaction(
-                                'btcusd', 
-                                'BUY', 
-                                ORDER_QUANTITY, 
-                                returnedValue[1].finalTradePrice, 
-                                returnedValue[1].atPrice, 
-                                unixElapsed
-                            )
-                        );
+                        allTransactions.push(transaction);
 
-                        return 1; // BUY return value
-
-                    } else {
-                        console.log(errOrder);
-                        return -1; // error
+                        transactionsToBeChecked.splice(i, 1);
+        
+                        return 1;
                     }
-                }).catch((err) => {
-                    console.log(err);
-                });
-            } else {
-                console.log(`HOLD @ $${globalCurrentLast} ~> Insufficient funds`);
-                return 2; // HOLD return value
-            }
-        } else if (parseFloat(globalCurrentLast) > lastTransactedPrice) { // SELL
-
-            // Iterate through transactions to determine course of action 
-            // Based on past transaction last prices and comparing to current last price
-            // Found transaction with price lower than current => SELL
-            transactionsToBeChecked.forEach((value, index) => {
-
-                // Use Decimal.js package for precise comparisons
-                var atPrice = parseFloat(value.atPrice);
-
-                if (parseFloat(globalCurrentLast) > atPrice + (PROFIT_MARGIN + FEE)) {
-
-                    // quantityToSell = (value.quantity * value.atPrice) / globalCurrentLast;
-                    const quantityToSell = value.quantity;
-
-                    // remove transaction from checked list
-                    transactionsToBeChecked.splice(index, 1);
-
-                    const unixElapsed = Date.now();
-
-                    httpClient.placeOrder('btcusd', 'sell', quantityToSell).then(async (returnedValue) => {
-                        if (returnedValue[0] === 0) { // successfully sold for profit
-
-                            console.log(`SELL @ $${globalCurrentLast}`);
-
-                            await displayFunds();
-                            buyCounter = 0;
-
-                            // store sell transaction
-                            allTransactions.push(
-                                new Transaction(
-                                    'btcusd', 
-                                    'SELL', 
-                                    quantityToSell, 
-                                    value.paidPrice, 
-                                    globalCurrentLast, 
-                                    unixElapsed
-                                )
-                            );
-
-                            return 0; // SELL return value
-
-                        } else { // err handling placeOrder(sell) rec
-                            console.log(errOrderRec);
-                            return -1;
-                        }
-                    }).catch((err) => {
-                        console.log(err);
+                    catch (e) {
+                        console.log(e);
                         return -1;
-                    });
-
+                    }
                 }
-
-                if (index == transactionsToBeChecked.length - 1) return 2; // HOLD return value;
-
-            });
+            }
         } else {
             return 2; // HOLD return value
         }
@@ -245,21 +197,36 @@ async function processProfitStrategy() {
 
 /** App Run */
 
-// Using an async function here in order to wait for the first displayFunds()
-// This improves console output
-(async function main() {
+console.log('\nRunning bot...');
 
-    updateCurrentPrice();
+socketBot = new Client(async () => {
+    try {   
 
-    console.log("\nTrading bot running...");
+        // Get new best bid
+        await socketBot.request('subscribeTicker', { 'symbol': 'BTCUSD' });
 
-    await displayFunds();
+        // Authenticate session - BASIC Encryption Algorithm
+        await socketBot.request('login', {
+            'algo': 'BASIC',
+            'pKey': secrets.API_KEY,
+            'sKey': secrets.SECRET_KEY
+        });
 
-    const t = new Timer(async () => {
-        await processProfitStrategy();
-        saveTransactions();
-    }, 1500);
+    } catch (e) {
+        throw new Error(e);
+    }
+}, '/');
 
-    t.setInterval();
+// Set callback handlers
 
-})();
+// Ticker price update handler
+socketBot.setHandler('ticker', async params => {  // console.log(params.bid);
+
+    currentBid = params.bid;
+    
+    // Start strategy processing here
+    processProfitStrategy();
+
+    saveTransactions();
+
+});
