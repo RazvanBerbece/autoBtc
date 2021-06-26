@@ -25,4 +25,4 @@ In order to run the project, the user should get a public:secret key pair from D
 
 The API credentials should then be placed in a dictionary 'classes/HTTP/assets' in a 'secrets.js' file which contains API_KEY and SECRET_KEY. 
 
-Finally, export the dictionary and use it in the HTTP client.
+Finally, export the dictionary and use it in the TCP client.
