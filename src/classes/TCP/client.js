@@ -6,7 +6,6 @@ const WebSocket = require('ws');
 const Request = require('./assets/request');
 
 const WSS_API_LINK = 'wss://api.demo.hitbtc.com/api/2/ws';
-// const credentials = Buffer.from(secrets.API_KEY + ':' + secrets.SECRET_KEY).toString('base64');
 
 class Client {
 
