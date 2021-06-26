@@ -16,6 +16,7 @@ Built on the Demo HitBTC crypto exchange platform with the use of their Websocke
 # NPM Packages
 1. ws
 2. fs
+3. moment
 
 I recommend using 'npm i' when first cloning the repo in order to install all required packages.
 

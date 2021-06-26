@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/RazvanBerbece/autoBtc#readme",
   "dependencies": {
+    "moment": "^2.29.1",
     "node-fetch": "^2.6.1",
     "setinterval": "^0.2.1",
     "ws": "^7.5.0"
